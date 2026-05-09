@@ -113,6 +113,7 @@ GPU (RTX 4080 SUPER):
 | `gemma4:latest` (8B)           |   16 s       | 100% GPU            | poor — ignores filters, hallucinates line counts  |
 | **`qwen2.5-coder:14b`** *(at 16K ctx)* | **16 s** | **100% GPU**     | similar to 8B; code-tuned wording is cleaner      |
 | `qwen2.5-coder:14b` (32K ctx)  |   30 s       | 78% GPU             | same                                              |
+| `deepseek-r1:14b` *(at 16K ctx)* | 24 s no-think / longer w/think | 100% GPU | **bad fit** — reasoning model dumps everything without thinking, curates incomplete answers with thinking |
 | **`gemma4:26B`**               |   54 s       | 73% GPU             | **strong — actually filters and constrains**      |
 | `qwen3.6:35b-a3b` (MoE)        |   77 s cold / 56 s warm | 55% GPU  | similar to 26B but errors persist; no edge        |
 
@@ -129,6 +130,23 @@ GPU (RTX 4080 SUPER):
   Code-tuned, fully on GPU, equal speed to 8B. Override `-NumCtx` to
   16384 to keep it 100% GPU; 32K context bumps it to partial offload
   and ~2× slower.
+
+### A note on reasoning models (DeepSeek-R1 family)
+
+`deepseek-r1:14b` fits cleanly (9 GB, 100% GPU at 16K ctx) and runs
+the bench in ~24 s, BUT it's the wrong tool for this offload pattern:
+
+- With `think:false` it ignores instructions and dumps everything
+  (listed all underscore methods despite "no leading underscore",
+  listed every method despite ">40 lines only", confused functions
+  with classes).
+- With `think:true` it spends most of its output budget on internal
+  reasoning before answering — and the answer is often incomplete
+  (5 of 10 public methods in the extract test).
+
+R1's value is "answer this one hard question carefully", not
+"enumerate everything matching this pattern across many files".
+Reasoning models curate; bulk codebase scans need exhaustion.
 
 ### A note on VRAM (RTX 4080 SUPER, 16 GB)
 
