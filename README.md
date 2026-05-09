@@ -102,21 +102,40 @@ A useful follow-up pattern for findings that include code citations:
 2. Claude verifies each with a `Grep` call
 3. Claude only reads the verified lines in detail
 
+## Model selection (from benchmark testing)
+
+Ran the same three tasks (structured extract, multi-file pattern detect,
+open-ended summary) against several Ollama models. Results:
+
+| Model              | 3-test total | Format adherence | Trustworthy without re-verify? |
+| ------------------ | -----------: | ---------------- | ------------------------------ |
+| `gemma4:latest` (8B)   |  16 s | poor — ignores filter constraints, hallucinates line counts | no |
+| `gemma4:26B`           |  54 s | strong — actually filters and constrains output           | **yes** |
+| `qwen3.6:35b-a3b` (MoE) |  77 s | similar to 26B, no quality advantage                       | no faster than 26B |
+
+**Default in this wrapper is `gemma4:26B`** — the quality sweet spot. ~3×
+slower than 8B but reliably honors structural constraints (filters,
+"output exactly this format", etc.) so its output can be acted on
+directly.
+
+Use `-Model gemma4:latest` when you specifically want fast candidate-
+finding and you'll verify hits with grep before doing anything with them.
+
 ## Caveats / lessons learned
 
-- **8B-class models hallucinate line numbers.** Use them to find
-  candidate locations, then verify with grep before acting.
+- **8B-class models hallucinate line numbers and ignore filters.** Use
+  them only to find candidate locations to grep-verify.
 - **`num_ctx`** defaults are way too low. Override every time.
 - **Think mode** silently eats your output budget. Default off in this
   wrapper.
 - **Big single prompts (>5K tokens) on the 8B** start to repeat
-  themselves. Chunk per-file with `gemma_audit_per_file.ps1` instead.
-- **31B is slow** on most consumer hardware — fine for a few well-chosen
-  prompts, not for batch loops.
+  themselves. Chunk per-file with `gemma_audit_per_file.ps1`.
+- **MoE models** like Qwen3.6 35b-a3b were not faster than the dense
+  26B on these short sequential calls — the routing overhead dominates.
 - **Temp file body**: the wrapper writes the JSON request to a temp file
-  before POSTing it. This is deliberate — direct `-Body` passing of long
-  strings containing source code can trip PowerShell's quoting and result
-  in `invalid character` errors from Ollama's JSON parser.
+  before POSTing it. Direct `-Body` passing of long strings containing
+  source code can trip PowerShell's quoting and result in `invalid
+  character` errors from Ollama's JSON parser.
 
 ## License
 

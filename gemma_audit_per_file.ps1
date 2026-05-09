@@ -39,7 +39,7 @@ param(
     [string]$Glob,
     [Parameter(Mandatory=$true)]
     [string]$Prompt,
-    [string]$Model       = 'gemma4:latest',
+    [string]$Model       = 'gemma4:26B',
     [int]$NumCtx         = 16384,
     [int]$MaxTokens      = 600,
     [string]$Root        = (Get-Location).Path

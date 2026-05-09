@@ -22,9 +22,12 @@
     to the prompt under a "--- FILE: <path> ---" delimiter.
 
 .PARAMETER Model
-    Ollama model tag.  Defaults to gemma4:latest (~8B) for throughput.
-    Use a larger model for harder reasoning, accepting slower per-call
-    speed.
+    Ollama model tag.  Defaults to gemma4:26B — the sweet spot in
+    benchmark testing: only ~3x slower than 8B but reliably follows
+    format/filter constraints, so its output can be trusted without
+    re-verifying every line.  Use gemma4:latest for "find candidates
+    to verify with grep" tasks where throughput matters more than
+    precision.
 
 .PARAMETER MaxTokens
     Cap on response length (Ollama "num_predict").  Default 4096.
@@ -64,7 +67,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$Prompt,
     [string[]]$Files     = @(),
-    [string]$Model       = 'gemma4:latest',
+    [string]$Model       = 'gemma4:26B',
     [int]$MaxTokens      = 4096,
     [int]$NumCtx         = 32768,    # Ollama defaults to 2048 — too small
     [bool]$Think         = $false,   # Thinking mode silently eats output budget
