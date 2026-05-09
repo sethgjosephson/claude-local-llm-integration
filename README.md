@@ -105,21 +105,36 @@ A useful follow-up pattern for findings that include code citations:
 ## Model selection (from benchmark testing)
 
 Ran the same three tasks (structured extract, multi-file pattern detect,
-open-ended summary) against several Ollama models. Results:
+open-ended summary) against several Ollama models. Results on a 16 GB
+GPU (RTX 4080 SUPER):
 
-| Model              | 3-test total | Format adherence | Trustworthy without re-verify? |
-| ------------------ | -----------: | ---------------- | ------------------------------ |
-| `gemma4:latest` (8B)   |  16 s | poor — ignores filter constraints, hallucinates line counts | no |
-| `gemma4:26B`           |  54 s | strong — actually filters and constrains output           | **yes** |
-| `qwen3.6:35b-a3b` (MoE) |  77 s | similar to 26B, no quality advantage                       | no faster than 26B |
+| Model                  | 3-test total | GPU split   | Format adherence | Trust output? |
+| ---------------------- | -----------: | ----------- | ---------------- | ------------- |
+| `gemma4:latest` (8B)   |  16 s        | 100% GPU    | poor — ignores filters, hallucinates line counts | no |
+| `gemma4:26B`           |  54 s        | 73% GPU     | strong — actually filters and constrains output  | **yes** |
+| `qwen3.6:35b-a3b` (MoE)|  77 s cold / 56 s warm | 55% GPU | similar to 26B but errors persist | no advantage over 26B |
 
-**Default in this wrapper is `gemma4:26B`** — the quality sweet spot. ~3×
-slower than 8B but reliably honors structural constraints (filters,
-"output exactly this format", etc.) so its output can be acted on
-directly.
+**Default in this wrapper is `gemma4:26B`** — the quality sweet spot.
+~3× slower than 8B but reliably honors structural constraints
+(filters, "output exactly this format", etc.) so its output can be
+acted on directly.
 
 Use `-Model gemma4:latest` when you specifically want fast candidate-
-finding and you'll verify hits with grep before doing anything with them.
+finding and you'll verify hits with grep.
+
+### A note on VRAM
+
+The split column above is what `ollama ps` reports while the model is
+loaded. On 16 GB cards, ANY model whose weights are >~13 GB will
+partial-offload to CPU regardless of how small you make `num_ctx` —
+the model weights themselves are the constraint, not the KV cache.
+
+`qwen3.6:35b-a3b`'s MoE design (3 B active params per token) doesn't
+help here: routing decisions still touch all the experts, and any
+expert layer that lives on CPU costs you per-token latency.  In our
+test, lowering its context from 32 K to 8 K kept the GPU/CPU split at
+55/45 — worth knowing before assuming bigger MoE = faster on consumer
+GPUs.
 
 ## Caveats / lessons learned
 
