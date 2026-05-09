@@ -3,8 +3,10 @@
 #>
 param(
     [string[]]$Models = @('gemma4:latest', 'gemma4:26B', 'gemma4:31b', 'qwen3.6:35b-a3b'),
-    [string]$ProjectRoot = 'D:\Projects\1004_Nodes_For_3D_Slicer'
+    [string]$ProjectRoot = 'D:\Projects\1004_Nodes_For_3D_Slicer',
+    [int]$NumCtx        = 32768
 )
+$script:BenchNumCtx = $NumCtx
 
 $ErrorActionPreference = 'Stop'
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
@@ -18,7 +20,7 @@ function Run-Test {
     param($Name, $Model, $Prompt, $Files, $MaxTokens)
     $sw   = [System.Diagnostics.Stopwatch]::StartNew()
     $resp = & $ask -Prompt $Prompt -Files $Files -Model $Model `
-                   -NumCtx 32768 -MaxTokens $MaxTokens 2>$null
+                   -NumCtx $script:BenchNumCtx -MaxTokens $MaxTokens 2>$null
     $sw.Stop()
     $obj = [pscustomobject]@{
         Model    = $Model

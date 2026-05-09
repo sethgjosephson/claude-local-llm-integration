@@ -108,33 +108,46 @@ Ran the same three tasks (structured extract, multi-file pattern detect,
 open-ended summary) against several Ollama models. Results on a 16 GB
 GPU (RTX 4080 SUPER):
 
-| Model                  | 3-test total | GPU split   | Format adherence | Trust output? |
-| ---------------------- | -----------: | ----------- | ---------------- | ------------- |
-| `gemma4:latest` (8B)   |  16 s        | 100% GPU    | poor — ignores filters, hallucinates line counts | no |
-| `gemma4:26B`           |  54 s        | 73% GPU     | strong — actually filters and constrains output  | **yes** |
-| `qwen3.6:35b-a3b` (MoE)|  77 s cold / 56 s warm | 55% GPU | similar to 26B but errors persist | no advantage over 26B |
+| Model                          | 3-test total | GPU split (32K ctx) | Format adherence                                  |
+| ------------------------------ | -----------: | ------------------- | ------------------------------------------------- |
+| `gemma4:latest` (8B)           |   16 s       | 100% GPU            | poor — ignores filters, hallucinates line counts  |
+| **`qwen2.5-coder:14b`** *(at 16K ctx)* | **16 s** | **100% GPU**     | similar to 8B; code-tuned wording is cleaner      |
+| `qwen2.5-coder:14b` (32K ctx)  |   30 s       | 78% GPU             | same                                              |
+| **`gemma4:26B`**               |   54 s       | 73% GPU             | **strong — actually filters and constrains**      |
+| `qwen3.6:35b-a3b` (MoE)        |   77 s cold / 56 s warm | 55% GPU  | similar to 26B but errors persist; no edge        |
 
-**Default in this wrapper is `gemma4:26B`** — the quality sweet spot.
-~3× slower than 8B but reliably honors structural constraints
-(filters, "output exactly this format", etc.) so its output can be
-acted on directly.
+**Two recommended defaults depending on the task:**
 
-Use `-Model gemma4:latest` when you specifically want fast candidate-
-finding and you'll verify hits with grep.
+- **`gemma4:26B`** — *current wrapper default.* Use when you want the
+  model's output to be **trusted directly** (a structured list, a
+  filtered set, a typed answer). The only model that reliably honored
+  format/filter constraints in testing.
 
-### A note on VRAM
+- **`qwen2.5-coder:14b -NumCtx 16384`** — Use when you want **speed
+  with grep-verification afterwards** (find candidate file:line
+  locations, list files matching a pattern, one-line summaries).
+  Code-tuned, fully on GPU, equal speed to 8B. Override `-NumCtx` to
+  16384 to keep it 100% GPU; 32K context bumps it to partial offload
+  and ~2× slower.
 
-The split column above is what `ollama ps` reports while the model is
-loaded. On 16 GB cards, ANY model whose weights are >~13 GB will
-partial-offload to CPU regardless of how small you make `num_ctx` —
-the model weights themselves are the constraint, not the KV cache.
+### A note on VRAM (RTX 4080 SUPER, 16 GB)
+
+`ollama ps` reports the GPU/CPU split.  On 16 GB cards, ANY model
+whose weights are >~13 GB will partial-offload to CPU regardless of
+how small you make `num_ctx` — the weights themselves are the
+constraint, not the KV cache.
 
 `qwen3.6:35b-a3b`'s MoE design (3 B active params per token) doesn't
 help here: routing decisions still touch all the experts, and any
-expert layer that lives on CPU costs you per-token latency.  In our
-test, lowering its context from 32 K to 8 K kept the GPU/CPU split at
-55/45 — worth knowing before assuming bigger MoE = faster on consumer
-GPUs.
+expert layer that lives on CPU costs per-token latency.  Lowering its
+context from 32 K to 8 K kept the split at 55/45 — worth knowing
+before assuming bigger MoE = faster on consumer GPUs.
+
+For models that **do** fit (`qwen2.5-coder:14b` and smaller), the KV
+cache CAN push you over the edge.  At 32 K ctx the 14B uses 18 GB
+total and partial-offloads (78% GPU); at 16 K ctx it's 13 GB and
+100% GPU.  Lower `num_ctx` is usually a free speedup if your inputs
+are smaller than the cap.
 
 ## Caveats / lessons learned
 
